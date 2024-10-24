@@ -219,7 +219,14 @@ func (b *Broker) GetAuthenticationModes(sessionID string, supportedUILayouts []m
 
 	endpoints := make(map[string]struct{})
 	if session.authCfg.provider != nil && session.authCfg.provider.Endpoint().DeviceAuthURL != "" {
-		endpoints[authmodes.DeviceID] = struct{}{}
+		authMode := authmodes.DeviceQrID
+		if _, ok := supportedAuthModes[authMode]; ok {
+			endpoints[authMode] = struct{}{}
+		}
+		authMode = authmodes.DeviceID
+		if _, ok := supportedAuthModes[authMode]; ok {
+			endpoints[authMode] = struct{}{}
+		}
 	}
 
 	availableModes, err := b.providerInfo.CurrentAuthenticationModesOffered(
@@ -261,7 +268,11 @@ func (b *Broker) supportedAuthModesFromLayout(supportedUILayouts []map[string]st
 			if !strings.Contains(layout["wait"], "true") {
 				continue
 			}
-			supportedModes[authmodes.DeviceID] = "Device Authentication"
+			deviceAuthID := authmodes.DeviceQrID
+			if layout["renders_qrcode"] == "false" {
+				deviceAuthID = authmodes.DeviceID
+			}
+			supportedModes[deviceAuthID] = "Device Authentication"
 
 		case "form":
 			if slices.Contains(supportedEntries, "chars_password") {
@@ -312,21 +323,31 @@ func (b *Broker) generateUILayout(session *sessionInfo, authModeID string) (map[
 
 	var uiLayout map[string]string
 	switch authModeID {
-	case authmodes.DeviceID:
+	case authmodes.DeviceID, authmodes.DeviceQrID:
 		ctx, cancel := context.WithTimeout(context.Background(), maxRequestDuration)
 		defer cancel()
 		response, err := session.authCfg.oauth.DeviceAuth(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("could not generate QR code layout: %v", err)
+			return nil, fmt.Errorf("could not generate Device Authentication code layout: %v", err)
 		}
 		session.authInfo["response"] = response
 
-		uiLayout = map[string]string{
-			"type": "qrcode",
-			"label": fmt.Sprintf(
+		var label string
+		if authModeID == authmodes.DeviceQrID {
+			label = fmt.Sprintf(
 				"Scan the QR code or access %q and use the provided login code",
 				response.VerificationURI,
-			),
+			)
+		} else {
+			label = fmt.Sprintf(
+				"Access %q and use the provided login code",
+				response.VerificationURI,
+			)
+		}
+
+		uiLayout = map[string]string{
+			"type":    "qrcode",
+			"label":   label,
 			"wait":    "true",
 			"button":  "Request new login code",
 			"content": response.VerificationURI,
@@ -434,7 +455,7 @@ func (b *Broker) handleIsAuthenticated(ctx context.Context, session *sessionInfo
 
 	var authInfo authCachedInfo
 	switch session.selectedMode {
-	case authmodes.DeviceID:
+	case authmodes.DeviceID, authmodes.DeviceQrID:
 		response, ok := session.authInfo["response"].(*oauth2.DeviceAuthResponse)
 		if !ok {
 			slog.Error("could not get device auth response")

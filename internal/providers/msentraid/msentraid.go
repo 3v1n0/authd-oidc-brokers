@@ -237,7 +237,9 @@ func (p Provider) CurrentAuthenticationModesOffered(
 		}
 
 	default: // auth mode
-		if _, ok := endpoints[authmodes.DeviceID]; ok && providerReachable {
+		if _, ok := endpoints[authmodes.DeviceQrID]; ok && providerReachable {
+			offeredModes = []string{authmodes.DeviceQrID}
+		} else if _, ok := endpoints[authmodes.DeviceID]; ok && providerReachable {
 			offeredModes = []string{authmodes.DeviceID}
 		}
 		if tokenExists {

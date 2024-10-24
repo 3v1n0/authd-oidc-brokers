@@ -8,6 +8,9 @@ const (
 	// DeviceID is the ID of the device authentication method.
 	DeviceID = "device_auth"
 
+	// DeviceQrID is the ID of the device authentication method when QrCode rendering is enabled.
+	DeviceQrID = "device_auth_qr"
+
 	// NewPasswordID is the ID of the new password configuration method.
 	NewPasswordID = "newpassword"
 )
